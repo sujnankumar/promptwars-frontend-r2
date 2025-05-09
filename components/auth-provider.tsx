@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import axios from "@/lib/axios"
 
 import { createContext, useContext, useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
@@ -9,18 +10,19 @@ type User = {
   username: string
   role: "admin" | "team"
   teamName?: string
+  token?: string
 }
 
 type AuthContextType = {
   user: User | null
-  login: (username: string, password: string, role: "admin" | "team") => boolean
+  login: (username: string, password: string, role: "admin" | "team") => Promise<boolean>
   logout: () => void
   isAuthenticated: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: () => false,
+  login: async () => false,
   logout: () => {},
   isAuthenticated: false,
 })
@@ -80,21 +82,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, pathname, router])
 
-  const login = (username: string, password: string, role: "admin" | "team") => {
-    const foundUser = MOCK_USERS.find((u) => u.username === username && u.password === password && u.role === role)
-
-    if (foundUser) {
-      const userData = {
-        username: foundUser.username,
-        role: foundUser.role,
-        teamName: foundUser.teamName,
+  const login = async (username: string, password: string, role: "admin" | "team") => {
+    try {
+      const response = await axios.post("/auth/login", {
+        username,
+        password,
+        role,
+      })
+      if (response.data && response.data.success) {
+        const userData = {
+          username,
+          role: response.data.role,
+          token: response.data.token,
+        }
+        setUser(userData)
+        localStorage.setItem("promptWarsUser", JSON.stringify(userData))
+        return true
       }
-      setUser(userData)
-      localStorage.setItem("promptWarsUser", JSON.stringify(userData))
-      return true
+      return false
+    } catch (err: any) {
+      return false
     }
-
-    return false
   }
 
   const logout = () => {

@@ -9,6 +9,8 @@ import { GlitchButton } from "@/components/ui/glitch-button"
 import { useAuth } from "@/components/auth-provider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Shield, Sword, Terminal } from "lucide-react"
+import { Toaster } from "@/components/ui/toaster"
+import { toast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -18,15 +20,25 @@ export default function LoginPage() {
   const { login } = useAuth()
   const router = useRouter()
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!username || !password) {
       setError("Username and password are required")
+      toast({
+        title: "Authentication Error",
+        description: "Username and password are required",
+        variant: "destructive",
+      })
       return
     }
 
-    const success = login(username, password, activeTab)
+    const success = await login(username, password, activeTab)
 
     if (success) {
+      toast({
+        title: "Login Successful",
+        description: `Welcome, ${username}!`,
+        variant: "success",
+      })
       if (activeTab === "admin") {
         router.push("/admin/dashboard")
       } else {
@@ -34,6 +46,11 @@ export default function LoginPage() {
       }
     } else {
       setError("Invalid credentials")
+      toast({
+        title: "Authentication Error",
+        description: "Invalid credentials",
+        variant: "destructive",
+      })
     }
   }
 
@@ -120,6 +137,7 @@ export default function LoginPage() {
           <p>Team: teamA/passA, teamB/passB, etc.</p>
         </div>
       </div>
+      <Toaster />
     </div>
   )
 }
