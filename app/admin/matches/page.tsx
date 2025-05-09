@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import axios from "@/lib/axios"
+import { toast } from "@/hooks/use-toast"
 import { TerminalCard } from "@/components/ui/terminal-card"
 import { TypingText } from "@/components/ui/typing-text"
 import { GlitchButton } from "@/components/ui/glitch-button"
@@ -56,6 +58,60 @@ const initialMatches = [
 export default function MatchesPage() {
   const router = useRouter()
   const [matches, setMatches] = useState(initialMatches)
+  const [loading, setLoading] = useState(false)
+  const [tournamentId, setTournamentId] = useState<string | null>(null)
+
+  // Fetch matches from backend on mount
+  useEffect(() => {
+    const tid = typeof window !== "undefined" ? localStorage.getItem("tournamentId") : null
+    setTournamentId(tid)
+    if (!tid) return
+    setLoading(true)
+    axios.get(`/matches`, { params: { tournament_id: tid } })
+      .then(res => {
+        if (Array.isArray(res.data)) {
+          setMatches(res.data)
+        }
+      })
+      .catch(e => {
+        toast({
+          title: "Failed to load matches",
+          description: e?.response?.data?.message || e?.message || "Could not fetch matches from backend.",
+          variant: "destructive",
+        })
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Save all matches to backend
+  const saveMatches = async (newMatches: typeof matches) => {
+    if (!tournamentId) return
+    try {
+      await axios.post(`/matches`, newMatches, { params: { tournament_id: tournamentId } })
+      toast({ title: "Matches saved", description: "All matches have been saved.", variant: "success" })
+    } catch (e: any) {
+      toast({
+        title: "Failed to save matches",
+        description: e?.response?.data?.message || e?.message || "Could not save matches.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Update a single match in backend
+  const updateMatch = async (match: typeof matches[0]) => {
+    if (!tournamentId) return
+    try {
+      await axios.patch(`/matches/${match.id}`, match, { params: { tournament_id: tournamentId } })
+      toast({ title: "Match updated", description: `Match #${match.id} updated.`, variant: "success" })
+    } catch (e: any) {
+      toast({
+        title: "Failed to update match",
+        description: e?.response?.data?.message || e?.message || "Could not update match.",
+        variant: "destructive",
+      })
+    }
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {

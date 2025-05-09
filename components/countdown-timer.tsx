@@ -7,13 +7,17 @@ import { cn } from "@/lib/utils"
 
 interface CountdownTimerProps {
   duration: number // in seconds
+  startTime: number // UNIX timestamp, seconds
   onComplete: () => void
   isRunning: boolean
   className?: string
 }
 
-export function CountdownTimer({ duration, onComplete, isRunning, className }: CountdownTimerProps) {
-  const [timeRemaining, setTimeRemaining] = useState(duration)
+export function CountdownTimer({ duration, startTime, onComplete, isRunning, className }: CountdownTimerProps) {
+  const [timeRemaining, setTimeRemaining] = useState(() => {
+    const now = Math.floor(Date.now() / 1000)
+    return Math.max(duration - (now - startTime), 0)
+  })
   const [isLowTime, setIsLowTime] = useState(false)
 
   useEffect(() => {
@@ -21,12 +25,16 @@ export function CountdownTimer({ duration, onComplete, isRunning, className }: C
 
     if (isRunning && timeRemaining > 0) {
       interval = setInterval(() => {
-        setTimeRemaining((prev) => {
-          const newTime = prev - 1
-          if (newTime <= 60 && !isLowTime) {
+        setTimeRemaining(() => {
+          const now = Math.floor(Date.now() / 1000)
+          const remaining = Math.max(duration - (now - startTime), 0)
+          if (remaining <= 60 && !isLowTime) {
             setIsLowTime(true)
           }
-          return newTime
+          if (remaining === 0) {
+            onComplete()
+          }
+          return remaining
         })
       }, 1000)
     } else if (timeRemaining === 0 && isRunning) {
@@ -36,13 +44,14 @@ export function CountdownTimer({ duration, onComplete, isRunning, className }: C
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [isRunning, timeRemaining, onComplete, isLowTime])
+  }, [isRunning, timeRemaining, onComplete, isLowTime, duration, startTime])
 
-  // Reset timer when duration changes
+  // Reset timer when duration or startTime changes
   useEffect(() => {
-    setTimeRemaining(duration)
+    const now = Math.floor(Date.now() / 1000)
+    setTimeRemaining(Math.max(duration - (now - startTime), 0))
     setIsLowTime(false)
-  }, [duration])
+  }, [duration, startTime])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)

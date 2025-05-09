@@ -8,7 +8,7 @@ import { TerminalInput } from "@/components/ui/terminal-input"
 import { GlitchButton } from "@/components/ui/glitch-button"
 import { useAuth } from "@/components/auth-provider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Shield, Sword, Terminal } from "lucide-react"
+import { Shield, Sword, Terminal, Eye, EyeOff } from "lucide-react"
 import { Toaster } from "@/components/ui/toaster"
 import { toast } from "@/hooks/use-toast"
 
@@ -16,7 +16,8 @@ export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const [activeTab, setActiveTab] = useState<"admin" | "team">("admin")
+  const [activeTab, setActiveTab] = useState<"admin" | "team">("team")
+  const [showPassword, setShowPassword] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
 
@@ -68,18 +69,18 @@ export default function LoginPage() {
 
         <TerminalCard title="AUTHENTICATION TERMINAL">
           <Tabs
-            defaultValue="admin"
+            defaultValue="team"
             className="w-full"
             onValueChange={(value) => setActiveTab(value as "admin" | "team")}
           >
             <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="admin" className="flex items-center gap-2">
-                <Terminal size={16} />
-                <span>Admin Login</span>
-              </TabsTrigger>
               <TabsTrigger value="team" className="flex items-center gap-2">
                 {activeTab === "team" ? <Sword size={16} className="text-neon-green" /> : <Shield size={16} />}
                 <span>Team Login</span>
+              </TabsTrigger>
+              <TabsTrigger value="admin" className="flex items-center gap-2">
+                <Terminal size={16} />
+                <span>Admin Login</span>
               </TabsTrigger>
             </TabsList>
 
@@ -89,14 +90,23 @@ export default function LoginPage() {
                 <TerminalInput value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 relative">
                 <label className="text-sm text-muted-foreground">Password</label>
                 <TerminalInput
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="********"
                 />
+                <button
+                  type="button"
+                  className="absolute right-2 top-8 text-muted-foreground hover:text-foreground focus:outline-none"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </TabsContent>
 
@@ -106,14 +116,23 @@ export default function LoginPage() {
                 <TerminalInput value={username} onChange={(e) => setUsername(e.target.value)} placeholder="teamA" />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 relative">
                 <label className="text-sm text-muted-foreground">Password</label>
                 <TerminalInput
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="********"
                 />
+                <button
+                  type="button"
+                  className="absolute right-2 top-8 text-muted-foreground hover:text-foreground focus:outline-none"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </TabsContent>
 

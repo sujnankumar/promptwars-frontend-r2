@@ -6,9 +6,12 @@ import { TypingText } from "@/components/ui/typing-text"
 import { GlitchButton } from "@/components/ui/glitch-button"
 import { Users, Trophy, Plus } from "lucide-react"
 import { TeamSetupModal } from "@/components/team-setup-modal"
+import { TournamentSetupModal } from "@/components/tournament-setup-modal"
 import { MatchCard } from "@/components/match-card"
 import { BracketConnector } from "@/components/bracket-connector"
 import { useSearchParams } from "next/navigation"
+import { toast } from "@/hooks/use-toast"
+import axios from "@/lib/axios"
 
 type MatchStatus = "pending" | "in-progress" | "completed"
 
@@ -32,11 +35,16 @@ export default function TournamentBracket() {
   const bracketRef = useRef<HTMLDivElement>(null)
 
   const [showTeamSetup, setShowTeamSetup] = useState(false)
+  const [showTournamentSetup, setShowTournamentSetup] = useState(false)
   const [teams, setTeams] = useState<Team[]>([])
   const [connectors, setConnectors] = useState<
     { id: string; startX: number; startY: number; endX: number; endY: number }[]
   >([])
   const [animateConnectors, setAnimateConnectors] = useState(false)
+  const [teamsRegistered, setTeamsRegistered] = useState(false)
+  const [registeringTeams, setRegisteringTeams] = useState(false)
+  const [tournamentId, setTournamentId] = useState<string | null>(null)
+  const [tournamentSetupComplete, setTournamentSetupComplete] = useState(false)
 
   // Initial bracket structure
   const [bracket, setBracket] = useState<{
@@ -56,6 +64,101 @@ export default function TournamentBracket() {
     ],
     final: [{ id: 7, team1: null, team2: null, winner: null, status: "pending", round: "final" }],
   })
+
+  // Helper: Sync a round's matchups to backend (for new backend contract)
+  const syncRoundToBackend = async (round: "quarterfinal" | "semifinal" | "final", bracketToSync: typeof bracket, tid: string | null) => {
+    if (!tid) return
+    try {
+      let matchups: Team[][] = []
+      if (round === "quarterfinal") {
+        matchups = bracketToSync.quarterfinals.map(m => [m.team1, m.team2].filter(Boolean) as Team[])
+      } else if (round === "semifinal") {
+        matchups = bracketToSync.semifinals.map(m => [m.team1, m.team2].filter(Boolean) as Team[])
+      } else if (round === "final") {
+        matchups = bracketToSync.final.map(m => [m.team1, m.team2].filter(Boolean) as Team[])
+      }
+      await axios.post("/tournament/matchups", {
+        tournament_id: tid,
+        round,
+        matchups,
+      })
+      toast({
+        title: `Bracket synced (${round})`,
+        description: `Bracket state for ${round} saved to backend`,
+        variant: "success",
+      })
+    } catch (e: any) {
+      toast({
+        title: "Error syncing bracket",
+        description: e?.response?.data?.message || e?.message || "Could not sync bracket to backend.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Restore teams and tournamentId from localStorage on mount
+  useEffect(() => {
+    const storedTournamentId = typeof window !== "undefined" ? localStorage.getItem("tournamentId") : null
+    if (storedTournamentId) {
+      setTournamentId(storedTournamentId)
+      axios
+        .get("/auth/teams", { params: { tournament_id: storedTournamentId } })
+        .then((res) => {
+          if (res.data.success && Array.isArray(res.data.teams) && res.data.teams.length === 8) {
+            setTeams(res.data.teams.map((t: any, idx: number) => ({ id: Number(t.id) || idx + 1, name: t.username || t.name })))
+            setTeamsRegistered(true)
+            // Optionally, update bracket with teams
+            const confirmedTeams = res.data.teams.map((t: any, idx: number) => ({ id: Number(t.id) || idx + 1, name: t.username || t.name }))
+            const updatedBracket = { ...bracket }
+            for (let i = 0; i < 4; i++) {
+              updatedBracket.quarterfinals[i].team1 = confirmedTeams[i * 2] || null
+              updatedBracket.quarterfinals[i].team2 = confirmedTeams[i * 2 + 1] || null
+            }
+            setBracket(updatedBracket)
+            if (typeof window !== "undefined") {
+              localStorage.setItem("tournamentId", storedTournamentId)
+            }
+          }
+        })
+        .catch(() => {
+          setTeamsRegistered(false)
+          setTeams([])
+        })
+    }
+  }, [])
+
+  // Restore matchups from backend on mount if tournamentId exists
+  useEffect(() => {
+    if (!tournamentId) return
+    const fetchAllRounds = async () => {
+      const updatedBracket = { ...bracket }
+      for (const round of ["quarterfinal", "semifinal", "final"] as const) {
+        try {
+          const res = await axios.get("/tournament/matchups", { params: { tournament_id: tournamentId, round } })
+          if (res.data && Array.isArray(res.data.matchups)) {
+            const matchups: Team[][] = res.data.matchups
+            if (round === "quarterfinal") {
+              for (let i = 0; i < 4; i++) {
+                updatedBracket.quarterfinals[i].team1 = matchups[i]?.[0] ?? null
+                updatedBracket.quarterfinals[i].team2 = matchups[i]?.[1] ?? null
+              }
+            } else if (round === "semifinal") {
+              for (let i = 0; i < 2; i++) {
+                updatedBracket.semifinals[i].team1 = matchups[i]?.[0] ?? null
+                updatedBracket.semifinals[i].team2 = matchups[i]?.[1] ?? null
+              }
+            } else if (round === "final") {
+              updatedBracket.final[0].team1 = matchups[0]?.[0] ?? null
+              updatedBracket.final[0].team2 = matchups[0]?.[1] ?? null
+            }
+          }
+        } catch {}
+      }
+      setBracket(updatedBracket)
+    }
+    fetchAllRounds()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentId])
 
   // Check for advanced winner from match control
   useEffect(() => {
@@ -170,27 +273,55 @@ export default function TournamentBracket() {
     return () => window.removeEventListener("resize", calculateConnectors)
   }, [bracket, teams])
 
-  const handleTeamsConfirmed = (confirmedTeams: Team[]) => {
-    setTeams(confirmedTeams)
-
-    // Update bracket with teams
-    const updatedBracket = { ...bracket }
-
-    // Assign teams to quarterfinals
-    for (let i = 0; i < 4; i++) {
-      updatedBracket.quarterfinals[i].team1 = confirmedTeams[i * 2] || null
-      updatedBracket.quarterfinals[i].team2 = confirmedTeams[i * 2 + 1] || null
+  const handleTeamsConfirmed = async (confirmedTeams: Team[]) => {
+    setRegisteringTeams(true)
+    try {
+      const response = await axios.post("/auth/register-teams-bulk", {
+        team_names: confirmedTeams.map((t) => t.name),
+      })
+      const data = response.data
+      if (data.success) {
+        setTeams(confirmedTeams)
+        setTeamsRegistered(true)
+        setTournamentId(data.tournament_id)
+        if (typeof window !== "undefined") {
+          localStorage.setItem("tournamentId", data.tournament_id)
+        }
+        // Update bracket with teams
+        const updatedBracket = { ...bracket }
+        for (let i = 0; i < 4; i++) {
+          updatedBracket.quarterfinals[i].team1 = confirmedTeams[i * 2] || null
+          updatedBracket.quarterfinals[i].team2 = confirmedTeams[i * 2 + 1] || null
+        }
+        setBracket(updatedBracket)
+        setTimeout(() => {
+          setAnimateConnectors(true)
+        }, 500)
+        toast({
+          title: "Teams registered!",
+          description: data.message || "All teams have been registered successfully.",
+          variant: "success",
+        })
+      } else {
+        toast({
+          title: "Registration failed",
+          description: data.message || "Could not register teams.",
+          variant: "destructive",
+        })
+      }
+    } catch (e: any) {
+      toast({
+        title: "Error registering teams",
+        description: e?.response?.data?.message || e?.message || "An unexpected error occurred.",
+        variant: "destructive",
+      })
+      console.error("Failed to register teams", e)
+    } finally {
+      setRegisteringTeams(false)
     }
-
-    setBracket(updatedBracket)
-
-    // Animate connectors after a short delay
-    setTimeout(() => {
-      setAnimateConnectors(true)
-    }, 500)
   }
 
-  const handleWinnerSelection = (
+  const handleWinnerSelection = async (
     roundType: "quarterfinals" | "semifinals" | "final",
     matchId: number,
     winnerId: number,
@@ -227,6 +358,7 @@ export default function TournamentBracket() {
       if (semifinal.team1 && semifinal.team2) {
         semifinal.status = "pending"
       }
+      await syncRoundToBackend("semifinal", updatedBracket, tournamentId)
     } else if (roundType === "semifinals") {
       const isFirstTeam = matchIndex === 0
 
@@ -241,6 +373,7 @@ export default function TournamentBracket() {
       if (final.team1 && final.team2) {
         final.status = "pending"
       }
+      await syncRoundToBackend("final", updatedBracket, tournamentId)
     }
 
     setBracket(updatedBracket)
@@ -266,29 +399,24 @@ export default function TournamentBracket() {
         </h1>
 
         <div className="flex gap-4">
-          {teams.length === 0 ? (
-            <GlitchButton
-              onClick={() => setShowTeamSetup(true)}
-              glitchColor="green"
-              className="flex items-center gap-2"
-            >
-              <Users size={16} />
-              <span>Setup Teams</span>
-            </GlitchButton>
-          ) : (
-            <GlitchButton
-              variant="outline"
-              onClick={() => {
-                // For demo, set first quarterfinal as in progress
-                setMatchInProgress("quarterfinals", 1)
-              }}
-              glitchColor="blue"
-              className="flex items-center gap-2"
-            >
-              <Plus size={16} />
-              <span>Start Next Match</span>
-            </GlitchButton>
-          )}
+          <GlitchButton
+            onClick={() => setShowTeamSetup(true)}
+            glitchColor="green"
+            className="flex items-center gap-2"
+            disabled={teamsRegistered || registeringTeams}
+          >
+            <Users size={16} />
+            <span>Setup Teams</span>
+          </GlitchButton>
+          <GlitchButton
+            onClick={() => setShowTournamentSetup(true)}
+            glitchColor="blue"
+            className="flex items-center gap-2"
+            disabled={!teamsRegistered || teams.length !== 8 || tournamentSetupComplete}
+          >
+            <Trophy size={16} />
+            <span>Setup Tournament</span>
+          </GlitchButton>
         </div>
       </div>
 
@@ -379,23 +507,62 @@ export default function TournamentBracket() {
       <div className="flex justify-end">
         <GlitchButton
           variant="outline"
-          onClick={() => {
-            // Reset the bracket
-            setBracket({
-              quarterfinals: [
-                { id: 1, team1: null, team2: null, winner: null, status: "pending", round: "quarterfinal" },
-                { id: 2, team1: null, team2: null, winner: null, status: "pending", round: "quarterfinal" },
-                { id: 3, team1: null, team2: null, winner: null, status: "pending", round: "quarterfinal" },
-                { id: 4, team1: null, team2: null, winner: null, status: "pending", round: "quarterfinal" },
-              ],
-              semifinals: [
-                { id: 5, team1: null, team2: null, winner: null, status: "pending", round: "semifinal" },
-                { id: 6, team1: null, team2: null, winner: null, status: "pending", round: "semifinal" },
-              ],
-              final: [{ id: 7, team1: null, team2: null, winner: null, status: "pending", round: "final" }],
-            })
-            setTeams([])
-            setAnimateConnectors(false)
+          onClick={async () => {
+            if (!tournamentId) {
+              toast({
+                title: "No tournament to reset",
+                description: "No tournament ID found. Please set up teams first.",
+                variant: "destructive",
+              })
+              return
+            }
+            try {
+              const response = await axios.post("/auth/reset-tournament", null, {
+                params: { tournament_id: tournamentId },
+              })
+              const data = response.data
+              if (data.success) {
+                setBracket({
+                  quarterfinals: [
+                    { id: 1, team1: null, team2: null, winner: null, status: "pending", round: "quarterfinal" },
+                    { id: 2, team1: null, team2: null, winner: null, status: "pending", round: "quarterfinal" },
+                    { id: 3, team1: null, team2: null, winner: null, status: "pending", round: "quarterfinal" },
+                    { id: 4, team1: null, team2: null, winner: null, status: "pending", round: "quarterfinal" },
+                  ],
+                  semifinals: [
+                    { id: 5, team1: null, team2: null, winner: null, status: "pending", round: "semifinal" },
+                    { id: 6, team1: null, team2: null, winner: null, status: "pending", round: "semifinal" },
+                  ],
+                  final: [{ id: 7, team1: null, team2: null, winner: null, status: "pending", round: "final" }],
+                })
+                setTeams([])
+                setAnimateConnectors(false)
+                setTeamsRegistered(false)
+                setTournamentId(null)
+                setTournamentSetupComplete(false)
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem("tournamentId")
+                }
+                toast({
+                  title: "Bracket reset",
+                  description: data.message || "The tournament bracket and teams have been reset.",
+                  variant: "success",
+                })
+              } else {
+                toast({
+                  title: "Reset failed",
+                  description: data.message || "Could not reset tournament.",
+                  variant: "destructive",
+                })
+              }
+            } catch (e: any) {
+              toast({
+                title: "Error resetting tournament",
+                description: e?.response?.data?.message || e?.message || "An unexpected error occurred.",
+                variant: "destructive",
+              })
+              console.error("Failed to reset tournament", e)
+            }
           }}
           glitchColor="purple"
         >
@@ -408,6 +575,53 @@ export default function TournamentBracket() {
         isOpen={showTeamSetup}
         onClose={() => setShowTeamSetup(false)}
         onTeamsConfirmed={handleTeamsConfirmed}
+      />
+      {/* Tournament Setup Modal */}
+      <TournamentSetupModal
+        isOpen={showTournamentSetup}
+        onClose={() => setShowTournamentSetup(false)}
+        teams={teams}
+        onSetup={async (matchups) => {
+          if (!tournamentId) {
+            toast({
+              title: "No tournament ID",
+              description: "Please register teams before setting up the tournament.",
+              variant: "destructive",
+            })
+            return
+          }
+          try {
+            const updatedBracket = { ...bracket }
+            for (let i = 0; i < 4; i++) {
+              updatedBracket.quarterfinals[i].team1 = matchups[i][0]
+              updatedBracket.quarterfinals[i].team2 = matchups[i][1]
+              updatedBracket.quarterfinals[i].winner = null
+              updatedBracket.quarterfinals[i].status = "pending"
+            }
+            // Clear later rounds
+            for (let i = 0; i < 2; i++) {
+              updatedBracket.semifinals[i].team1 = null
+              updatedBracket.semifinals[i].team2 = null
+              updatedBracket.semifinals[i].winner = null
+              updatedBracket.semifinals[i].status = "pending"
+            }
+            updatedBracket.final[0].team1 = null
+            updatedBracket.final[0].team2 = null
+            updatedBracket.final[0].winner = null
+            updatedBracket.final[0].status = "pending"
+            setBracket(updatedBracket)
+            setShowTournamentSetup(false)
+            setTournamentSetupComplete(true)
+            // Save only quarterfinals to backend for setup
+            await syncRoundToBackend("quarterfinal", updatedBracket, tournamentId)
+          } catch (e: any) {
+            toast({
+              title: "Error setting up tournament",
+              description: e?.response?.data?.message || e?.message || "An unexpected error occurred.",
+              variant: "destructive",
+            })
+          }
+        }}
       />
     </div>
   )

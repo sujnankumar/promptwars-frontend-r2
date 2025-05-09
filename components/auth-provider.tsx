@@ -11,6 +11,7 @@ type User = {
   role: "admin" | "team"
   teamName?: string
   token?: string
+  tournamentId?: string
 }
 
 type AuthContextType = {
@@ -94,6 +95,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           username,
           role: response.data.role,
           token: response.data.token,
+          tournamentId: "27d6f888-885a-4598-9dbd-0092c51fffce",
+          teamName: username,
         }
         setUser(userData)
         localStorage.setItem("promptWarsUser", JSON.stringify(userData))
