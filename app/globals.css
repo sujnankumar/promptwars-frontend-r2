@@ -1,0 +1,227 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 130 100% 50%;
+    --primary-foreground: 0 0% 0%;
+
+    --secondary: 270 100% 60%;
+    --secondary-foreground: 0 0% 98%;
+
+    --accent: 199 100% 60%;
+    --accent-foreground: 0 0% 98%;
+
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 130 100% 50%;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+.glitch-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.glitch-effect:hover::before {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: inherit;
+  text-shadow: -2px 0 #00ff00;
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim 0.3s infinite linear alternate-reverse;
+}
+
+.glitch-effect:hover::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: inherit;
+  text-shadow: 2px 0 #ff00ff;
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim2 0.3s infinite linear alternate-reverse;
+  animation-delay: 0.15s;
+}
+
+@keyframes glitch-anim {
+  0% {
+    clip: rect(42px, 9999px, 44px, 0);
+  }
+  20% {
+    clip: rect(12px, 9999px, 59px, 0);
+  }
+  40% {
+    clip: rect(62px, 9999px, 78px, 0);
+  }
+  60% {
+    clip: rect(22px, 9999px, 11px, 0);
+  }
+  80% {
+    clip: rect(92px, 9999px, 35px, 0);
+  }
+  100% {
+    clip: rect(49px, 9999px, 88px, 0);
+  }
+}
+
+@keyframes glitch-anim2 {
+  0% {
+    clip: rect(32px, 9999px, 15px, 0);
+  }
+  20% {
+    clip: rect(72px, 9999px, 34px, 0);
+  }
+  40% {
+    clip: rect(12px, 9999px, 65px, 0);
+  }
+  60% {
+    clip: rect(62px, 9999px, 21px, 0);
+  }
+  80% {
+    clip: rect(82px, 9999px, 33px, 0);
+  }
+  100% {
+    clip: rect(39px, 9999px, 25px, 0);
+  }
+}
+
+.typing-animation {
+  overflow: hidden;
+  border-right: 2px solid var(--primary);
+  white-space: nowrap;
+  margin: 0 auto;
+  animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite;
+}
+
+@keyframes typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes blink-caret {
+  from,
+  to {
+    border-color: transparent;
+  }
+  50% {
+    border-color: var(--primary);
+  }
+}
+
+.circuit-bg {
+  position: relative;
+}
+
+.circuit-line {
+  position: absolute;
+  background: linear-gradient(90deg, rgba(0, 255, 0, 0.1) 0%, rgba(0, 255, 0, 0.3) 50%, rgba(0, 255, 0, 0.1) 100%);
+  height: 1px;
+  width: 100%;
+  transform-origin: left;
+  animation: circuit-line-move 8s infinite linear;
+}
+
+@keyframes circuit-line-move {
+  0% {
+    transform: translateY(0) scaleX(0);
+    opacity: 0;
+  }
+  5% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) scaleX(1);
+    opacity: 0;
+  }
+}
+
+.glow {
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.5), 0 0 20px rgba(0, 255, 0, 0.3), 0 0 30px rgba(0, 255, 0, 0.1);
+}
+
+.glow-purple {
+  box-shadow: 0 0 10px rgba(128, 0, 255, 0.5), 0 0 20px rgba(128, 0, 255, 0.3), 0 0 30px rgba(128, 0, 255, 0.1);
+}
+
+.glow-blue {
+  box-shadow: 0 0 10px rgba(0, 128, 255, 0.5), 0 0 20px rgba(0, 128, 255, 0.3), 0 0 30px rgba(0, 128, 255, 0.1);
+}
+
+.terminal-transition {
+  animation: terminal-in 0.3s ease-in-out;
+}
+
+@keyframes terminal-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.flicker {
+  animation: flicker 2s infinite alternate;
+}
+
+@keyframes flicker {
+  0%,
+  19%,
+  21%,
+  23%,
+  25%,
+  54%,
+  56%,
+  100% {
+    opacity: 1;
+  }
+  20%,
+  24%,
+  55% {
+    opacity: 0.5;
+  }
+}
